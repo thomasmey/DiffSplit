@@ -100,10 +100,10 @@ public class DiffSplit {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
+		int fixSpaceIndex;
+		
 		while(currentLine!=null) {
-
-			
+		
 			if(currentLine.startsWith("Processing ")) {
 				newmode = 1;
 			}
@@ -122,6 +122,11 @@ public class DiffSplit {
 
 			switch (newmode) {
 			case 2:
+				for(fixSpaceIndex=0; fixSpaceIndex < currentLine.length() && currentLine.charAt(fixSpaceIndex) == ' '; fixSpaceIndex++);
+				
+				if(fixSpaceIndex>0 && fixSpaceIndex < currentLine.length())
+					currentLine = currentLine.substring(fixSpaceIndex);
+
 				message.add(currentLine);
 				break;
 			case 3:
@@ -163,7 +168,7 @@ public class DiffSplit {
 				if(prevDi!=null) {
 					String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
 					String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
-					if (path1.compareTo(path2) == 0) {
+					if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
 						// put this changes in one email
 						currentMail.appendBody(di.getDiffContent());
 					} else {
@@ -187,6 +192,26 @@ public class DiffSplit {
 				prevDi = di;
 			}
 		}
+	}
+
+	private boolean isOnTryHarderList(String path1, String path2) {
+
+		Enumeration<Object> e1 = props.keys();
+		while(e1.hasMoreElements()) {
+			Object key = e1.nextElement();
+			if(key instanceof String) {
+				if(((String)key).startsWith("mergeHarder")) {
+					Object value = props.get(key);
+				
+					if(value instanceof String) {
+						if (path1.startsWith((String)value) && path2.startsWith((String)value))
+							return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private boolean checkExcludeGitCommitDate(String newFile) {
