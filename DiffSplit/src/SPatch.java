@@ -30,7 +30,11 @@ public class SPatch {
 	}
 
 	private void setTitle(String string) {
-		this.title = string;
+		int i = string.lastIndexOf('.');
+		if(i>=0)
+			this.title = string.substring(0, i);
+		else
+			this.title = string;
 	}
 
 	public ArrayList<Diff> getDiffs() {
