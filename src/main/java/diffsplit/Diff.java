@@ -1,21 +1,23 @@
+package diffsplit;
+
 import java.io.File;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class Diff {
 
-	private ArrayList<String> diffContent;
+	private List<String> diffContent;
 	private String oldFile;
 	private String newFile;
-	private ArrayList<Maintainer> maintainers;
+	private List<Maintainer> maintainers;
 
-	public ArrayList<String> getDiffContent() {
+	public List<String> getDiffContent() {
 		return diffContent;
 	}
 
-	public void setDiffContent(ArrayList<String> diffContent) {
+	public void setDiffContent(List<String> diffContent) {
 		this.diffContent = diffContent;
-		
+
 		parseCommandLine(diffContent.get(0));
 	}
 
@@ -54,13 +56,11 @@ public class Diff {
 	public void setNewFile(String newFile) {
 		this.newFile = newFile.substring(newFile.indexOf(File.separatorChar) + 1);
 	}
-
-	public ArrayList<Maintainer> getMaintainers() {
+	List<Maintainer> getMaintainers() {
 		return maintainers;
 	}
 
-	public void setMaintainers(ArrayList<Maintainer> maintainers) {
+	public void setMaintainers(List<Maintainer> maintainers) {
 		this.maintainers = maintainers;
 	}
-	
 }

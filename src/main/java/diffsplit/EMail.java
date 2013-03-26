@@ -1,19 +1,21 @@
-import java.util.ArrayList;
+package diffsplit;
 
+import java.util.ArrayList;
+import java.util.List;
 
 public class EMail {
 
 	private String subject;
 	private String from;
 	private StringBuilder to;
-	private ArrayList<String> body;
-	
+	private List<String> body;
+
 	EMail () {
 		body = new ArrayList<String>();
 		to = new StringBuilder();
 	}
 
-	public void appendBody(ArrayList<String> message) {
+	public void appendBody(List<String> message) {
 		assert(message == null);
 		body.addAll(message);
 	}
@@ -24,10 +26,10 @@ public class EMail {
 		this.to.delete(0, this.to.length());
 		this.to.append(to);
 	}
-	public ArrayList<String> getBody() {
+	public List<String> getBody() {
 		return body;
 	}
-	public void setBody(ArrayList<String> body) {
+	public void setBody(List<String> body) {
 		this.body = body;
 	}
 	public String getSubject() {

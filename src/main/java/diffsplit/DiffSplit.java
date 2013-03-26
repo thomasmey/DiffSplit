@@ -1,3 +1,5 @@
+package diffsplit;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -17,6 +19,8 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 
@@ -25,10 +29,10 @@ public class DiffSplit {
 	private int oldmode = 0, newmode = 0;
 	private String currentLine = null;
 	private SPatch currentSPatch = null;
-	private Diff   currentDiff = null;
-	private ArrayList<SPatch> spatchList = new ArrayList<SPatch>();
-	private ArrayList<String> message = new ArrayList<String>();
-	private ArrayList<String> diff = new ArrayList<String>();
+	private Diff currentDiff = null;
+	private List<SPatch> spatchList = new ArrayList<SPatch>();
+	private List<String> message = new ArrayList<String>();
+	private List<String> diff = new ArrayList<String>();
 	private PrintWriter mboxWriter;
 	private BufferedReader inputReader;
 	private int patchNumber = 1;
@@ -39,14 +43,12 @@ public class DiffSplit {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		
 		String propFileName = "diffsplit.properties";
 		new DiffSplit(args, propFileName);
 	}
-	
+
 	DiffSplit(String[] args, String propFileName) {
-		
+
 		props = new Properties();
 		try {
 			props.load(new FileReader(propFileName));
@@ -86,11 +88,9 @@ public class DiffSplit {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
 		mboxWriter.close();
-		
 	}
-	
+
 	private void processFile() {
 
 		// read first
@@ -101,9 +101,9 @@ public class DiffSplit {
 			e.printStackTrace();
 		}
 		int fixSpaceIndex;
-		
+
 		while(currentLine!=null) {
-		
+
 			if(currentLine.startsWith("Processing ")) {
 				newmode = 1;
 			}
@@ -117,13 +117,13 @@ public class DiffSplit {
 					newmode = 4;
 
 			}
-			
+
 			checkModeChange();
 
 			switch (newmode) {
 			case 2:
 				for(fixSpaceIndex=0; fixSpaceIndex < currentLine.length() && currentLine.charAt(fixSpaceIndex) == ' '; fixSpaceIndex++);
-				
+
 				if(fixSpaceIndex>0 && fixSpaceIndex < currentLine.length())
 					currentLine = currentLine.substring(fixSpaceIndex);
 
@@ -149,9 +149,9 @@ public class DiffSplit {
 
 		EMail currentMail;
 		for(SPatch sp: spatchList) {
-			
+
 			Comparator<Diff> sortComp = new DiffFileComp();
-			
+
 			Collections.sort(sp.getDiffs(), sortComp);
 
 			currentMail = createNewMail(sp); 
@@ -202,7 +202,7 @@ public class DiffSplit {
 			if(key instanceof String) {
 				if(((String)key).startsWith("mergeHarder")) {
 					Object value = props.get(key);
-				
+
 					if(value instanceof String) {
 						if (path1.startsWith((String)value) && path2.startsWith((String)value))
 							return true;
@@ -254,7 +254,7 @@ public class DiffSplit {
 			}
 			return false;
 		}
-		
+
 		String currentLine = null;
 		try {
 			currentLine = reader.readLine();
@@ -267,18 +267,18 @@ public class DiffSplit {
 		if(currentLine!= null) {
 			minCommitDate = new Date(Long.parseLong(currentLine) * 1000);
 		}
-		
+
 		Calendar cal1 = Calendar.getInstance();
 		cal1.setTime(minCommitDate);
-		
+
 		Calendar cal2 = Calendar.getInstance();
 		String months = props.getProperty("excludeGitCommitDateAgeMonth");
 		int iMonths = Integer.valueOf(months) * -1;
 		cal2.add(Calendar.MONTH, iMonths);
-		
+
 		if(cal1.before(cal2))
 			return true;
-		
+
 		return false;
 	}
 
@@ -289,7 +289,7 @@ public class DiffSplit {
 			if(key instanceof String) {
 				if(((String)key).startsWith("excludePath")) {
 					Object value = props.get(key);
-				
+
 					if(value instanceof String) {
 						if (newFile.startsWith((String)value))
 							return true;
@@ -302,9 +302,9 @@ public class DiffSplit {
 	}
 
 	private String getGittLogPrefix(String newFile) {
-		
-		HashMap<String,Integer> hs = new HashMap<String, Integer>();
-		
+
+		Map<String,Integer> hs = new HashMap<String, Integer>();
+
 		Process proc;
 		try {
 			proc = Runtime.getRuntime().exec("git log -n 10 --no-merges --pretty=format:%s -- " + newFile + "\n", null, linuxDir);
@@ -343,7 +343,7 @@ public class DiffSplit {
 			}
 			return null;
 		}
-		
+
 		String currentLine = null;
 		try {
 			currentLine = reader.readLine();
@@ -351,7 +351,7 @@ public class DiffSplit {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+
 		String prefix;
 		int iDoppel,iStrich,iEnd;
 		Integer iCounter;
@@ -361,7 +361,7 @@ public class DiffSplit {
 			prefix = null;
 
 			if(currentLine.startsWith("Merge branch") ||
-			   currentLine.startsWith("Revert"))
+					currentLine.startsWith("Revert"))
 				;
 			else {
 				iEnd = 0;
@@ -392,7 +392,7 @@ public class DiffSplit {
 				e.printStackTrace();
 			}
 		}
-		
+
 		Iterator<Entry<String, Integer>> i1 =hs.entrySet().iterator();
 		Entry<String,Integer> resultSet;
 		Integer maxValue = 0;
@@ -408,7 +408,7 @@ public class DiffSplit {
 	}
 
 	private void appendMailTo(EMail currentMail,
-			ArrayList<Maintainer> maintainers) {
+			List<Maintainer> maintainers) {
 
 		int i = 0;
 		for(Maintainer m: maintainers) {
@@ -416,15 +416,15 @@ public class DiffSplit {
 			if(m.getRole().charAt(i)== '(')
 				i++;
 			if(m.getRole().startsWith("maintainer", i) ||
-			   m.getRole().startsWith("open list", i) ) {
+					m.getRole().startsWith("open list", i) ) {
 				currentMail.addTo(m.getEmail());
 			}
 		}
-		
+
 	}
 
 	private EMail createNewMail(SPatch sp) {
-		
+
 		EMail currentMail = new EMail();
 		currentMail.setFrom(props.getProperty("mailFrom"));
 		currentMail.appendBody(sp.getMessage());
@@ -435,7 +435,7 @@ public class DiffSplit {
 	}
 
 	private void writeMail(EMail mail) throws IOException {
-		
+
 
 		mboxWriter.println("From " + mail.getFrom());
 		mboxWriter.println("Subject: " + mail.getSubject());
@@ -451,7 +451,7 @@ public class DiffSplit {
 		patchNumber++;
 	}
 
-	private ArrayList<Maintainer> getMaintainer(String newFile) {
+	private List<Maintainer> getMaintainer(String newFile) {
 
 		Process proc;
 		try {
@@ -473,7 +473,7 @@ public class DiffSplit {
 
 		if(proc.exitValue() != 0)
 			return null;
-		
+
 		String currentLine = null;
 		try {
 			currentLine = reader.readLine();
@@ -481,7 +481,7 @@ public class DiffSplit {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+
 		ArrayList<Maintainer> maArray = new ArrayList<Maintainer>();
 		while(currentLine!= null) {
 
@@ -495,12 +495,12 @@ public class DiffSplit {
 				e.printStackTrace();
 			}
 		}
-		
+
 		return maArray;
 	}
 
 	private Maintainer parseMaintainer(String mainLine) {
-		
+
 		if(mainLine == null)
 			return null;
 		if(mainLine.isEmpty())
@@ -508,7 +508,7 @@ public class DiffSplit {
 
 		int i = mainLine.indexOf('<');
 		Maintainer m = new Maintainer();
-		
+
 		// no name provided!
 		if(i<0) {
 			i = mainLine.indexOf(' ');
@@ -554,8 +554,4 @@ public class DiffSplit {
 			}
 		}
 	}
-
 }
-
-
-

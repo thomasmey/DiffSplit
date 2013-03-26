@@ -1,3 +1,4 @@
+package diffsplit;
 
 public class Maintainer {
 	private String name;
@@ -22,5 +23,4 @@ public class Maintainer {
 	public void setRole(String role) {
 		this.role = role;
 	}
-
 }

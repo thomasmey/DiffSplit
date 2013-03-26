@@ -1,21 +1,23 @@
-import java.util.ArrayList;
+package diffsplit;
 
+import java.util.ArrayList;
+import java.util.List;
 
 public class SPatch {
 
-	private ArrayList<String> message;
-	private ArrayList<Diff> diffList;
+	private List<String> message;
+	private List<Diff> diffList;
 	private String title;
-	
+
 	SPatch() {
 		diffList = new ArrayList<Diff>();
 	};
-	
+
 	void addDiff(Diff diff) {
 		diffList.add(diff);
 	}
 
-	public void setMessage(ArrayList<String> message) {
+	public void setMessage(List<String> message) {
 		this.message = message;
 		if(message.get(0).startsWith("Message example to submit a patch:")) {
 			message.remove(0);
@@ -37,11 +39,11 @@ public class SPatch {
 			this.title = string;
 	}
 
-	public ArrayList<Diff> getDiffs() {
+	public List<Diff> getDiffs() {
 		return diffList;
 	}
 
-	public ArrayList<String> getMessage() {
+	public List<String> getMessage() {
 		return message;
 	}
 
