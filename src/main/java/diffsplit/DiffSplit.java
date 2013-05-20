@@ -399,8 +399,13 @@ public class DiffSplit implements Runnable {
 		}
 		sl.add(line);
 
-		for(String l : sl)
-			mboxWriter.println(field + ' ' + l);
+		for(int i = 0, n = sl.size(); i < n; i++) {
+			String l = sl.get(i);
+			if(i == 0)
+				mboxWriter.println(field + ' ' + l);
+			else
+				mboxWriter.println(' ' + l);
+		}
 	}
 
 	private List<Maintainer> getMaintainer(String newFile) throws IOException, InterruptedException {
