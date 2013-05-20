@@ -10,6 +10,7 @@ public class SPatch {
 	private String title;
 
 	SPatch() {
+		message = new ArrayList<String>();
 		diffList = new ArrayList<Diff>();
 	};
 
@@ -18,25 +19,21 @@ public class SPatch {
 	}
 
 	public void setMessage(List<String> message) {
-		this.message = message;
-		if(message.get(0).startsWith("Message example to submit a patch:")) {
-			message.remove(0);
-			while(message.get(0).isEmpty())
-				message.remove(0);
-		}
-		setTitle(message.get(0));
-		while(!message.get(0).isEmpty())
-			message.remove(0);
-		while(message.get(0).isEmpty())
-			message.remove(0);
+		this.message.addAll(message);
+//		if(message.get(0).startsWith("Message example to submit a patch:")) {
+//			message.remove(0);
+//			while(message.get(0).isEmpty())
+//				message.remove(0);
+//		}
+//		setTitle(message.get(0));
+//		while(!message.get(0).isEmpty())
+//			message.remove(0);
+//		while(message.get(0).isEmpty())
+//			message.remove(0);
 	}
 
-	private void setTitle(String string) {
-		int i = string.lastIndexOf('.');
-		if(i>=0)
-			this.title = string.substring(0, i);
-		else
-			this.title = string;
+	public void setTitle(String string) {
+		this.title = string;
 	}
 
 	public List<Diff> getDiffs() {

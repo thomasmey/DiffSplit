@@ -1,16 +1,12 @@
 package diffsplit;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -24,126 +20,109 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 
-public class DiffSplit {
+public class DiffSplit implements Runnable {
 
-	private int oldmode = 0, newmode = 0;
-	private String currentLine = null;
-	private SPatch currentSPatch = null;
-	private Diff currentDiff = null;
+	private int oldmode, newmode;
+	private SPatch currentSPatch;
+	private Diff currentDiff;
 	private List<SPatch> spatchList = new ArrayList<SPatch>();
 	private List<String> message = new ArrayList<String>();
 	private List<String> diff = new ArrayList<String>();
-	private PrintWriter mboxWriter;
-	private BufferedReader inputReader;
 	private int patchNumber = 1;
 	private Properties props;
 	private File linuxDir;
+	private File patchDir;
+	private PrintWriter mboxWriter;
 
 	/**
 	 * @param args
+	 * @throws IOException 
 	 */
-	public static void main(String[] args) {
-		String propFileName = "diffsplit.properties";
-		new DiffSplit(args, propFileName);
+	public static void main(String[] args) throws IOException {
+		new DiffSplit(args).run();
 	}
 
-	DiffSplit(String[] args, String propFileName) {
+	DiffSplit(String[] args) throws IOException {
 
+		InputStream configInputStream = this.getClass().getResourceAsStream("config.xml");
 		props = new Properties();
-		try {
-			props.load(new FileReader(propFileName));
-		} catch (FileNotFoundException e2) {
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
-		} catch (IOException e2) {
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
-			return;
-		}
+		props.loadFromXML(configInputStream);
 
 		linuxDir = new File(props.getProperty("linuxDir"));
-		Reader reader;
-		try {
-			reader = new BufferedReader(new FileReader(args[0]));
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-		inputReader = new BufferedReader(reader);
-
-		String mboxFileName = props.getProperty("mboxFileName");
-		try {
-			mboxWriter = new PrintWriter(new BufferedWriter(new FileWriter(mboxFileName)));
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-			return;
-		}
-
-		processFile();
-		try {
-			reader.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		mboxWriter.close();
+		patchDir = new File(args[0]);
 	}
 
-	private void processFile() {
+	public void run() {
 
-		// read first
-		try {
-			currentLine = inputReader.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		int fixSpaceIndex;
+		File[] patches = patchDir.listFiles();
+		for(File patch : patches) {
+			if(!patch.getName().endsWith(".spatch"))
+				continue;
 
-		while(currentLine!=null) {
-
-			if(currentLine.startsWith("Processing ")) {
-				newmode = 1;
-			}
-			if(currentLine.startsWith("Message example to submit a patch:")) {
-				newmode = 2;
-			}
-			if(currentLine.startsWith("diff")) {
-				newmode = 3;
-
-				if(oldmode == 3)
-					newmode = 4;
-
-			}
-
-			checkModeChange();
-
-			switch (newmode) {
-			case 2:
-				for(fixSpaceIndex=0; fixSpaceIndex < currentLine.length() && currentLine.charAt(fixSpaceIndex) == ' '; fixSpaceIndex++);
-
-				if(fixSpaceIndex>0 && fixSpaceIndex < currentLine.length())
-					currentLine = currentLine.substring(fixSpaceIndex);
-
-				message.add(currentLine);
-				break;
-			case 3:
-			case 4:
-				diff.add(currentLine);
-				break;
-			}
-			oldmode = newmode;
-
-			// read next
+			BufferedReader reader = null;
 			try {
-				currentLine = inputReader.readLine();
+				reader = new BufferedReader(new FileReader(patch));
+				mboxWriter = new PrintWriter(props.getProperty("mboxFileName"), "UTF-8");
+
+				// every file just contains one spatch
+				currentSPatch = new SPatch();
+				spatchList.add(currentSPatch);
+				currentSPatch.setTitle("Cocci spatch \"" + patch.getName() + "\"");
+
+				// read first
+				String currentLine = reader.readLine();
+
+				int fixSpaceIndex;
+
+				while(currentLine != null) {
+
+					if(currentLine.startsWith("Processing ")) {
+						newmode = 1;
+					}
+					if(currentLine.startsWith("Message example to submit a patch:")) {
+						newmode = 2;
+					}
+					if(currentLine.startsWith("diff")) {
+						newmode = 3;
+
+						if(oldmode == 3)
+							newmode = 4;
+					}
+
+					checkModeChange();
+
+					switch (newmode) {
+					case 2:
+						for(fixSpaceIndex=0; fixSpaceIndex < currentLine.length() && currentLine.charAt(fixSpaceIndex) == ' '; fixSpaceIndex++);
+
+						if(fixSpaceIndex>0 && fixSpaceIndex < currentLine.length())
+							currentLine = currentLine.substring(fixSpaceIndex);
+
+						message.add(currentLine);
+						break;
+					case 3:
+					case 4:
+						diff.add(currentLine);
+						break;
+					}
+					oldmode = newmode;
+
+					// read next
+					currentLine = reader.readLine();
+				}
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
+				return;
+			} finally {
+				if(reader != null) {
+					try {
+						reader.close();
+					} catch (IOException e) {}
+				}
 			}
 		}
+
+		// all SPatches were parsed, now process them
 		newmode = 9;
 		checkModeChange();
 
@@ -156,6 +135,7 @@ public class DiffSplit {
 
 			currentMail = createNewMail(sp); 
 
+			try {
 			Diff prevDi = null;
 			for(Diff di: sp.getDiffs()) {
 
@@ -165,7 +145,7 @@ public class DiffSplit {
 					continue;
 
 				// check for same path!
-				if(prevDi!=null) {
+				if(prevDi != null) {
 					String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
 					String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
 					if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
@@ -175,13 +155,8 @@ public class DiffSplit {
 						currentMail.setSubject("[PATCH] " + getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
 						prevDi.setMaintainers(getMaintainer(prevDi.getNewFile()));
 						appendMailTo(currentMail,prevDi.getMaintainers());
-						try {
-							writeMail(currentMail);
-						} catch (IOException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-							return;
-						}
+						writeMail(currentMail);
+
 						// new email
 						currentMail = createNewMail(sp);
 						currentMail.appendBody(di.getDiffContent());
@@ -190,6 +165,13 @@ public class DiffSplit {
 					currentMail.appendBody(di.getDiffContent());
 				}
 				prevDi = di;
+			}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
 	}
@@ -214,54 +196,32 @@ public class DiffSplit {
 		return false;
 	}
 
-	private boolean checkExcludeGitCommitDate(String newFile) {
+	private boolean checkExcludeGitCommitDate(String newFile) throws IOException, InterruptedException {
 
 		Process proc;
 		try {
 			proc = Runtime.getRuntime().exec("git log -n 1 --no-merges --pretty=format:%ct -- " + newFile + "\n", null, linuxDir);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return false;
 		}
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 
-		try {
-			proc.waitFor();
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
+		proc.waitFor();
 
 		if(proc.exitValue() != 0) {
 			InputStream err = proc.getErrorStream();
 			int b = 0;
-			try {
-				b = err.read();
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+			b = err.read();
 			while(b >= 0) {
 				System.out.append((char)b);
-				try {
-					b=err.read();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				b=err.read();
 			}
 			return false;
 		}
 
-		String currentLine = null;
-		try {
-			currentLine = reader.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		String currentLine = reader.readLine();
 
 		Date minCommitDate = null;
 		if(currentLine!= null) {
@@ -301,62 +261,34 @@ public class DiffSplit {
 		return false;
 	}
 
-	private String getGittLogPrefix(String newFile) {
+	private String getGittLogPrefix(String newFile) throws IOException, InterruptedException {
 
 		Map<String,Integer> hs = new HashMap<String, Integer>();
 
-		Process proc;
-		try {
-			proc = Runtime.getRuntime().exec("git log -n 10 --no-merges --pretty=format:%s -- " + newFile + "\n", null, linuxDir);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
-		}
+		Process proc = Runtime.getRuntime().exec("git log -n 10 --no-merges --pretty=format:%s -- " + newFile + "\n", null, linuxDir);
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 
-		try {
-			proc.waitFor();
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
+		proc.waitFor();
 
 		if(proc.exitValue() != 0) {
 			InputStream err = proc.getErrorStream();
 			int b = 0;
-			try {
-				b = err.read();
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+			b = err.read();
 			while(b >= 0) {
 				System.out.append((char)b);
-				try {
-					b=err.read();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				b=err.read();
 			}
 			return null;
 		}
 
-		String currentLine = null;
-		try {
-			currentLine = reader.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		String currentLine = reader.readLine();
 
 		String prefix;
 		int iDoppel,iStrich,iEnd;
 		Integer iCounter;
 
-		while(currentLine!= null) {
+		while(currentLine != null) {
 			// parse output and check most used prefix
 			prefix = null;
 
@@ -385,15 +317,11 @@ public class DiffSplit {
 					iCounter++;
 				hs.put(prefix, iCounter);
 			}
-			try {
-				currentLine = reader.readLine();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+
+			currentLine = reader.readLine();
 		}
 
-		Iterator<Entry<String, Integer>> i1 =hs.entrySet().iterator();
+		Iterator<Entry<String, Integer>> i1 = hs.entrySet().iterator();
 		Entry<String,Integer> resultSet;
 		Integer maxValue = 0;
 		String  maxKey = null;
@@ -434,53 +362,59 @@ public class DiffSplit {
 		return currentMail;
 	}
 
-	private void writeMail(EMail mail) throws IOException {
+	private void writeMail(EMail mail) {
 
+		writeEmailHeaderLine("From", mail.getFrom());
+		writeEmailHeaderLine("Subject:", mail.getSubject());
+		writeEmailHeaderLine("From:", mail.getFrom());
+		writeEmailHeaderLine("To:", mail.getTo());
+		writeEmailHeaderLine("Content-Type:", "text/plain; charset=\"UTF-8\"");
+		writeEmailHeaderLine("Mime-Version:", "1.0");
+		writeEmailHeaderLine("Content-Transfer-Encoding:", "8bit");
 
-		mboxWriter.println("From " + mail.getFrom());
-		mboxWriter.println("Subject: " + mail.getSubject());
-		mboxWriter.println("From: " + mail.getFrom());
-		mboxWriter.println("To: " + mail.getTo());
-		mboxWriter.println("Content-Type: text/plain; charset=\"UTF-8\"");
-		mboxWriter.println("Mime-Version: 1.0");
-		mboxWriter.println("Content-Transfer-Encoding: 8bit");
+		// finish header section
 		mboxWriter.println("");
+
 		for(String line: mail.getBody()) {
-			mboxWriter.println(line);
+			writeEmailBodyLine(line);
 		}
 		patchNumber++;
 	}
 
-	private List<Maintainer> getMaintainer(String newFile) {
+	private void writeEmailBodyLine(String line) {
+		mboxWriter.println(line);
+	}
 
-		Process proc;
-		try {
-			proc = Runtime.getRuntime().exec("./scripts/get_maintainer.pl -f " + newFile, null, linuxDir);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
+	private void writeEmailHeaderLine(String field, String line) {
+
+		List<String> sl = new ArrayList<String>();
+		int maxPos = 78;
+		while(line.length() > maxPos) {
+			int iSpace = line.lastIndexOf(' ', maxPos);
+			if(iSpace >= 0) {
+				String ss = line.substring(0, iSpace);
+				sl.add(ss);
+				line = line.substring(iSpace + 1);
+			}
 		}
+		sl.add(line);
+
+		for(String l : sl)
+			mboxWriter.println(field + ' ' + l);
+	}
+
+	private List<Maintainer> getMaintainer(String newFile) throws IOException, InterruptedException {
+
+		Process proc = Runtime.getRuntime().exec("./scripts/get_maintainer.pl -f " + newFile, null, linuxDir);
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 
-		try {
-			proc.waitFor();
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
+		proc.waitFor();
 
 		if(proc.exitValue() != 0)
 			return null;
 
-		String currentLine = null;
-		try {
-			currentLine = reader.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		String currentLine = reader.readLine();
 
 		ArrayList<Maintainer> maArray = new ArrayList<Maintainer>();
 		while(currentLine!= null) {
@@ -488,18 +422,13 @@ public class DiffSplit {
 			// parse output and create output table
 			Maintainer ma = parseMaintainer(currentLine);
 			maArray.add(ma);
-			try {
-				currentLine = reader.readLine();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			currentLine = reader.readLine();
 		}
 
 		return maArray;
 	}
 
-	private Maintainer parseMaintainer(String mainLine) {
+	private static Maintainer parseMaintainer(String mainLine) {
 
 		if(mainLine == null)
 			return null;
@@ -510,7 +439,7 @@ public class DiffSplit {
 		Maintainer m = new Maintainer();
 
 		// no name provided!
-		if(i<0) {
+		if(i < 0) {
 			i = mainLine.indexOf(' ');
 			m.setEmail(mainLine.substring(0, i));
 			m.setRole(mainLine.substring(i+1, mainLine.length()));
@@ -536,7 +465,6 @@ public class DiffSplit {
 			if (newmode == 1) {
 				currentSPatch = new SPatch();
 				spatchList.add(currentSPatch);
-
 			}
 			if(newmode == 2) {
 				message = new ArrayList<String>();
