@@ -16,7 +16,7 @@ public class EMail {
 	}
 
 	public void appendBody(List<String> message) {
-		assert(message == null);
+		assert(message != null);
 		body.addAll(message);
 	}
 	public String getTo() {

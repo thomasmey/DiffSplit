@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Commit message</comment>
+<entry key="err_cast">Use ERR_CAST inlined function instead of ERR_PTR(PTR_ERR(...)).</entry>
+<entry key="kzalloc-simple">Use kzalloc rather than kmalloc followed by memset with 0.</entry>
+<entry key="devm_ioremap_resource">Use devm_ioremap_resource rather than the old devm_request_and_ioremap and help avoid a whole lot of boilerplate code.</entry>
+<entry key="devm_request_and_ioremap">Reimplement a call to devm_request_mem_region followed by a call to ioremap or ioremap_nocache by a call to devm_request_and_ioremap. Devm_request_and_ioremap was introduced in 72f8c0bfa0de64c68ee59f40eb9b2683bffffbb0.  It makes the code much more concise.</entry>
+<entry key="resource_size">Use resource_size function on resource object instead of explicit computation.</entry>
+<entry key="memdup">Use kmemdup rather than duplicating its implementation.</entry>
+<entry key="kstrdup">Use kstrdup rather than duplicating its implementation.</entry>
+<entry key="call_kern">Find functions that refer to GFP_KERNEL but are called with locks held. (The proposed change of converting the GFP_KERNEL is not necessarily the correct one.  It may be desired to unlock the lock, or to not call the function under the lock in the first place)</entry>
+<entry key="warn">Use WARN(1,...) rather than printk followed by WARN_ON(1)</entry>
+<entry key="noderef">sizeof when applied to a pointer typed expression gives the size of the pointer.</entry>
+<entry key="semicolon">Removes unneeded semicolon.</entry>
+<entry key="itnull">Many iterators have the property that the first argument is always bound to a real list element, never NULL. (False positives arise for some iterators that do not have this property, or in cases when the loop cursor is reassigned.  The latter should only happen when the matched code is on the way to a loop exit (break, goto, or return)).</entry>
+<entry key="drop_kmalloc_cast">Casting (void *) value returned by kmalloc is useless as mentioned in Documentation/CodingStyle, chapter 14.</entry>
+<entry key="irqf_oneshot">Make sure threaded IRQs without a primary handler are always request with IRQF_ONESHOT</entry>
+<entry key="memcpy-assign">Replace memcpy with struct assignment. memcpy() is error-prone and can be replaced by struct assignment that is type-safe and much easier to read.</entry>
+<entry key="simple_open">This removes an open coded simple_open() function and replaces file operations references to the function with simple_open() instead.</entry>
+<entry key="ptr_ret">Use PTR_ERR_OR_ZERO rather than if(IS_ERR(...)) + PTR_ERR.</entry>
+<entry key="boolinit">Bool initializations should use true and false. Bool tests don't need comparisons.</entry>
+</properties>

@@ -20,16 +20,6 @@ public class SPatch {
 
 	public void setMessage(List<String> message) {
 		this.message.addAll(message);
-//		if(message.get(0).startsWith("Message example to submit a patch:")) {
-//			message.remove(0);
-//			while(message.get(0).isEmpty())
-//				message.remove(0);
-//		}
-//		setTitle(message.get(0));
-//		while(!message.get(0).isEmpty())
-//			message.remove(0);
-//		while(message.get(0).isEmpty())
-//			message.remove(0);
 	}
 
 	public void setTitle(String string) {

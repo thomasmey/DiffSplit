@@ -2,11 +2,13 @@ package diffsplit;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -16,116 +18,82 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 
 public class DiffSplit implements Runnable {
 
-	private int oldmode, newmode;
-	private SPatch currentSPatch;
-	private Diff currentDiff;
 	private List<SPatch> spatchList = new ArrayList<SPatch>();
-	private List<String> message = new ArrayList<String>();
-	private List<String> diff = new ArrayList<String>();
-	private int patchNumber = 1;
-	private Properties props;
+	private static Properties props;
 	private File linuxDir;
 	private File patchDir;
 	private PrintWriter mboxWriter;
+	private SimpleDateFormat fromDateFormater;
+	private Properties messages;
 
 	/**
 	 * @param args
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
+
+		// get global config option
+		InputStream inputStream = DiffSplit.class.getResourceAsStream("config.xml");
+		DiffSplit.props = new Properties();
+		DiffSplit.props.loadFromXML(inputStream);
+
 		new DiffSplit(args).run();
 	}
 
 	DiffSplit(String[] args) throws IOException {
 
-		InputStream configInputStream = this.getClass().getResourceAsStream("config.xml");
-		props = new Properties();
-		props.loadFromXML(configInputStream);
+		if(args.length < 1)
+			throw new IllegalArgumentException("Must provided spatch directory!");
 
-		linuxDir = new File(props.getProperty("linuxDir"));
+		// get commit messages for the spatches
+		InputStream inputStream = this.getClass().getResourceAsStream("messages.xml");
+		this.messages = new Properties();
+		this.messages.loadFromXML(inputStream);
+
+		linuxDir = new File(props.getProperty(Constants.LINUX_DIR));
 		patchDir = new File(args[0]);
+		fromDateFormater = new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", Locale.US);
 	}
 
 	public void run() {
 
+		if(!patchDir.isDirectory())
+			throw new IllegalArgumentException("patchDir must be a directory!");
+
+		// Parse all spatch files in the given directory
 		File[] patches = patchDir.listFiles();
 		for(File patch : patches) {
+			if(!patch.isFile())
+				continue;
+
 			if(!patch.getName().endsWith(".spatch"))
 				continue;
 
-			BufferedReader reader = null;
-			try {
-				reader = new BufferedReader(new FileReader(patch));
-				mboxWriter = new PrintWriter(props.getProperty("mboxFileName"), "UTF-8");
-
-				// every file just contains one spatch
-				currentSPatch = new SPatch();
-				spatchList.add(currentSPatch);
-				currentSPatch.setTitle("Cocci spatch \"" + patch.getName() + "\"");
-
-				// read first
-				String currentLine = reader.readLine();
-
-				int fixSpaceIndex;
-
-				while(currentLine != null) {
-
-					if(currentLine.startsWith("Processing ")) {
-						newmode = 1;
-					}
-					if(currentLine.startsWith("Message example to submit a patch:")) {
-						newmode = 2;
-					}
-					if(currentLine.startsWith("diff")) {
-						newmode = 3;
-
-						if(oldmode == 3)
-							newmode = 4;
-					}
-
-					checkModeChange();
-
-					switch (newmode) {
-					case 2:
-						for(fixSpaceIndex=0; fixSpaceIndex < currentLine.length() && currentLine.charAt(fixSpaceIndex) == ' '; fixSpaceIndex++);
-
-						if(fixSpaceIndex>0 && fixSpaceIndex < currentLine.length())
-							currentLine = currentLine.substring(fixSpaceIndex);
-
-						message.add(currentLine);
-						break;
-					case 3:
-					case 4:
-						diff.add(currentLine);
-						break;
-					}
-					oldmode = newmode;
-
-					// read next
-					currentLine = reader.readLine();
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-				return;
-			} finally {
-				if(reader != null) {
-					try {
-						reader.close();
-					} catch (IOException e) {}
-				}
-			}
+			SPatchProcessor processor = null;
+			processor = new SPatchProcessor(patch, this.messages);
+			List<SPatch> spatches = processor.call();
+			spatchList.addAll(spatches);
 		}
 
-		// all SPatches were parsed, now process them
-		newmode = 9;
-		checkModeChange();
+		// setup output writer
+		try {
+			mboxWriter = new PrintWriter(props.getProperty("mboxFileName"), "UTF-8");
+		} catch (FileNotFoundException e1) {
+			e1.printStackTrace();
+			return;
+		} catch (UnsupportedEncodingException e1) {
+			e1.printStackTrace();
+			return;
+		}
 
+		// Parse SPatch objects
 		EMail currentMail;
 		for(SPatch sp: spatchList) {
 
@@ -153,7 +121,7 @@ public class DiffSplit implements Runnable {
 						currentMail.appendBody(di.getDiffContent());
 					} else {
 						currentMail.setSubject("[PATCH] " + getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
-						prevDi.setMaintainers(getMaintainer(prevDi.getNewFile()));
+						prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
 						appendMailTo(currentMail,prevDi.getMaintainers());
 						writeMail(currentMail);
 
@@ -196,6 +164,13 @@ public class DiffSplit implements Runnable {
 		return false;
 	}
 
+	/**
+	 * 
+	 * @param newFile the file name in the linux directory to get the git log. 
+	 * @return true, if this file should be excluded from processing, false if file should be included in processing.
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
 	private boolean checkExcludeGitCommitDate(String newFile) throws IOException, InterruptedException {
 
 		Process proc;
@@ -222,11 +197,10 @@ public class DiffSplit implements Runnable {
 		}
 
 		String currentLine = reader.readLine();
+		if(currentLine == null)
+			return false;
 
-		Date minCommitDate = null;
-		if(currentLine!= null) {
-			minCommitDate = new Date(Long.parseLong(currentLine) * 1000);
-		}
+		Date minCommitDate = new Date(Long.parseLong(currentLine) * 1000);
 
 		Calendar cal1 = Calendar.getInstance();
 		cal1.setTime(minCommitDate);
@@ -354,8 +328,10 @@ public class DiffSplit implements Runnable {
 	private EMail createNewMail(SPatch sp) {
 
 		EMail currentMail = new EMail();
-		currentMail.setFrom(props.getProperty("mailFrom"));
+		String currentDate = fromDateFormater.format(new Date());
+		currentMail.setFrom(props.getProperty("mailFrom") + ' ' + currentDate);
 		currentMail.appendBody(sp.getMessage());
+		currentMail.appendBody("");
 		currentMail.appendBody("Signed-off-by: " + props.getProperty("mailSOB"));
 		currentMail.appendBody("---");
 		currentMail.appendBody("");
@@ -378,7 +354,7 @@ public class DiffSplit implements Runnable {
 		for(String line: mail.getBody()) {
 			writeEmailBodyLine(line);
 		}
-		patchNumber++;
+//		patchNumber++;
 	}
 
 	private void writeEmailBodyLine(String line) {
@@ -408,83 +384,7 @@ public class DiffSplit implements Runnable {
 		}
 	}
 
-	private List<Maintainer> getMaintainer(String newFile) throws IOException, InterruptedException {
-
-		Process proc = Runtime.getRuntime().exec("./scripts/get_maintainer.pl -f " + newFile, null, linuxDir);
-
-		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-
-		proc.waitFor();
-
-		if(proc.exitValue() != 0)
-			return null;
-
-		String currentLine = reader.readLine();
-
-		ArrayList<Maintainer> maArray = new ArrayList<Maintainer>();
-		while(currentLine!= null) {
-
-			// parse output and create output table
-			Maintainer ma = parseMaintainer(currentLine);
-			maArray.add(ma);
-			currentLine = reader.readLine();
-		}
-
-		return maArray;
-	}
-
-	private static Maintainer parseMaintainer(String mainLine) {
-
-		if(mainLine == null)
-			return null;
-		if(mainLine.isEmpty())
-			return null;
-
-		int i = mainLine.indexOf('<');
-		Maintainer m = new Maintainer();
-
-		// no name provided!
-		if(i < 0) {
-			i = mainLine.indexOf(' ');
-			m.setEmail(mainLine.substring(0, i));
-			m.setRole(mainLine.substring(i+1, mainLine.length()));
-		} else {
-			m.setName(mainLine.substring(0, i-1));
-			int i2 = mainLine.indexOf('>');
-			if(i2 < 0) {
-				// somethings wrong with the output of the pearl script!
-				// try to find the next space
-				i2 = mainLine.indexOf(' ', i);
-			}
-			m.setEmail(mainLine.substring(i+1, i2));
-			m.setRole(mainLine.substring(i2 + 2, mainLine.length()));
-
-		}
-		return m;
-	}
-
-	// check for group change
-	private void checkModeChange() {
-
-		if (newmode != oldmode) {
-			if (newmode == 1) {
-				currentSPatch = new SPatch();
-				spatchList.add(currentSPatch);
-			}
-			if(newmode == 2) {
-				message = new ArrayList<String>();
-			}
-			if(oldmode == 2) {
-				currentSPatch.setMessage(message);
-			}
-			if(oldmode == 3 || oldmode == 4) {
-				currentDiff.setDiffContent(diff);
-				diff = new ArrayList<String>();
-			}
-			if(newmode == 3 || newmode == 4) {
-				currentDiff = new Diff();
-				currentSPatch.addDiff(currentDiff);
-			}
-		}
+	public static Properties getConfig() {
+		return DiffSplit.props;
 	}
 }

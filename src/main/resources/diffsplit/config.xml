@@ -5,6 +5,6 @@
 <entry key="linuxDir">/home/thomas/source/linux</entry>
 <entry key="mboxFileName">cocci-patches.mbox</entry>
 <entry key="excludeGitCommitDateAgeMonth">12</entry>
-<entry key="mailFrom">Thomas Meyer &lt;thomas@m3y3r.de&gt;</entry>
+<entry key="mailFrom">thomas@m3y3r.de</entry>
 <entry key="mailSOB">Thomas Meyer &lt;thomas@m3y3r.de&gt;</entry>
 </properties>
