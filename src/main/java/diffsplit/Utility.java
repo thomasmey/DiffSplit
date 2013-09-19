@@ -86,4 +86,18 @@ public class Utility {
 
 		return maArray;
 	}
+
+	public static List<String> splitLineOn(int maxPos, String line) {
+		List<String> sl = new ArrayList<String>();
+		while(line.length() > maxPos) {
+			int iSpace = line.lastIndexOf(' ', maxPos);
+			if(iSpace >= 0) {
+				String ss = line.substring(0, iSpace);
+				sl.add(ss);
+				line = line.substring(iSpace + 1);
+			}
+		}
+		sl.add(line);
+		return sl;
+	}
 }

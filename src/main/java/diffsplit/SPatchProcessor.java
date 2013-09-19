@@ -37,11 +37,10 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 			{
 				String name = patch.getName();
 				String sname = name.substring(0, name.lastIndexOf('.'));
-				currentSPatch.setTitle("Cocci spatch \"" + sname + "\"");
+				currentSPatch.setName(sname);
 				String message = messages.getProperty(sname);
 				assert message != null : patch.getName();
-				List<String> messages = new ArrayList<String>();
-				messages.add(message);
+				List<String> messages = Utility.splitLineOn(78, message);
 				messages.add("Found by coccinelle spatch \"" + Utility.findPath(sname) +"\"");
 				currentSPatch.setMessage(messages);
 			}

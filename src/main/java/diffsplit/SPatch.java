@@ -7,7 +7,7 @@ public class SPatch {
 
 	private List<String> message;
 	private List<Diff> diffList;
-	private String title;
+	private String name;
 
 	SPatch() {
 		message = new ArrayList<String>();
@@ -22,8 +22,8 @@ public class SPatch {
 		this.message.addAll(message);
 	}
 
-	public void setTitle(String string) {
-		this.title = string;
+	public void setName(String string) {
+		this.name = string;
 	}
 
 	public List<Diff> getDiffs() {
@@ -35,7 +35,11 @@ public class SPatch {
 	}
 
 	public String getTitle() {
-		return title;
+		return "Cocci spatch \"" + this.name + "\"";
+	}
+
+	public String getName() {
+		return this.name;
 	}
 
 }

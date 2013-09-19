@@ -22,6 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class DiffSplit implements Runnable {
 
@@ -32,6 +34,7 @@ public class DiffSplit implements Runnable {
 	private PrintWriter mboxWriter;
 	private SimpleDateFormat fromDateFormater;
 	private Properties messages;
+	private Logger log;
 
 	/**
 	 * @param args
@@ -60,6 +63,7 @@ public class DiffSplit implements Runnable {
 		linuxDir = new File(props.getProperty(Constants.LINUX_DIR));
 		patchDir = new File(args[0]);
 		fromDateFormater = new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", Locale.US);
+		log = Logger.getAnonymousLogger();
 	}
 
 	public void run() {
@@ -96,7 +100,6 @@ public class DiffSplit implements Runnable {
 		// Parse SPatch objects
 		EMail currentMail;
 		for(SPatch sp: spatchList) {
-
 			Comparator<Diff> sortComp = new DiffFileComp();
 
 			Collections.sort(sp.getDiffs(), sortComp);
@@ -106,6 +109,7 @@ public class DiffSplit implements Runnable {
 			try {
 			Diff prevDi = null;
 			for(Diff di: sp.getDiffs()) {
+				log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
 
 				if(checkExcludePath(di.getNewFile()))
 					continue;
@@ -364,16 +368,8 @@ public class DiffSplit implements Runnable {
 	private void writeEmailHeaderLine(String field, String line) {
 
 		List<String> sl = new ArrayList<String>();
-		int maxPos = 78;
-		while(line.length() > maxPos) {
-			int iSpace = line.lastIndexOf(' ', maxPos);
-			if(iSpace >= 0) {
-				String ss = line.substring(0, iSpace);
-				sl.add(ss);
-				line = line.substring(iSpace + 1);
-			}
-		}
-		sl.add(line);
+		List<String> lines = Utility.splitLineOn(78, line);
+		sl.addAll(lines);
 
 		for(int i = 0, n = sl.size(); i < n; i++) {
 			String l = sl.get(i);
