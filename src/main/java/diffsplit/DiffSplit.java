@@ -35,6 +35,7 @@ public class DiffSplit implements Runnable {
 	private SimpleDateFormat fromDateFormater;
 	private Properties messages;
 	private Logger log;
+	private String runId;
 
 	/**
 	 * @param args
@@ -54,6 +55,11 @@ public class DiffSplit implements Runnable {
 
 		if(args.length < 1)
 			throw new IllegalArgumentException("Must provided spatch directory!");
+
+		if(args.length < 2)
+			throw new IllegalArgumentException("Must provided run/commit id!");
+
+		runId = args[1];
 
 		// get commit messages for the spatches
 		InputStream inputStream = this.getClass().getResourceAsStream("messages.xml");
@@ -98,46 +104,75 @@ public class DiffSplit implements Runnable {
 		}
 
 		// Parse SPatch objects
-		EMail currentMail;
 		for(SPatch sp: spatchList) {
 			Comparator<Diff> sortComp = new DiffFileComp();
 
 			Collections.sort(sp.getDiffs(), sortComp);
-
-			currentMail = createNewMail(sp); 
+			List<EMail> mails = new ArrayList<EMail>();
 
 			try {
-			Diff prevDi = null;
-			for(Diff di: sp.getDiffs()) {
-				log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
+				Diff prevDi = null;
+				EMail currentMail = createNewMail(sp); 
+				for(Diff di: sp.getDiffs()) {
+					log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
 
-				if(checkExcludePath(di.getNewFile()))
-					continue;
-				if(checkExcludeGitCommitDate(di.getNewFile()))
-					continue;
+					if(checkExcludePath(di.getNewFile()))
+						continue;
+					if(checkExcludeGitCommitDate(di.getNewFile()))
+						continue;
 
-				// check for same path!
-				if(prevDi != null) {
-					String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
-					String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
-					if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
-						// put this changes in one email
-						currentMail.appendBody(di.getDiffContent());
+					// check for same path!
+					if(prevDi != null) {
+						String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
+						String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
+						if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
+							// put this changes in one email
+							currentMail.appendBody(di.getDiffContent());
+						} else {
+							currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
+							prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
+							appendMailTo(currentMail, prevDi.getMaintainers());
+							mails.add(currentMail);
+
+							// new email
+							currentMail = createNewMail(sp);
+							currentMail.appendBody(di.getDiffContent());
+						}
 					} else {
-						currentMail.setSubject("[PATCH] " + getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
-						prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
-						appendMailTo(currentMail,prevDi.getMaintainers());
-						writeMail(currentMail);
-
-						// new email
-						currentMail = createNewMail(sp);
 						currentMail.appendBody(di.getDiffContent());
 					}
-				} else {
-					currentMail.appendBody(di.getDiffContent());
+					prevDi = di;
 				}
-				prevDi = di;
-			}
+
+				// create cover email
+				{
+					EMail cover = new EMail();
+					String currentDate = fromDateFormater.format(new Date());
+					cover.setFrom(props.getProperty("mailFrom") + ' ' + currentDate);
+					cover.setSubject(sp.getTitle() + " - " + runId);
+					String message = messages.getProperty(sp.getName());
+					List<String> messages = Utility.splitLineOn(78, message);
+					messages.add("Found by coccinelle spatch \"" + Utility.findPath(sp.getName()) +"\"");
+					messages.add("");
+					messages.add("Run against version " + runId);
+					cover.appendBody(messages);
+					cover.setTo("linux-kernel@vger.kernel.org");
+					mails.add(0, cover);
+				}
+
+				String coverMessageId = null;
+				for(int i = 0, n = mails.size() - 1; i <= n; i++) {
+					EMail mail = mails.get(i);
+					String subject = mail.getSubject();
+					mail.setSubject("[PATCH " + i + "/" + n +"] " + subject );
+					String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
+					writeMail(mail, messageId, coverMessageId);
+					if(i == 0) {
+						coverMessageId = messageId;
+					}
+				}
+				mboxWriter.flush();
+
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -342,7 +377,7 @@ public class DiffSplit implements Runnable {
 		return currentMail;
 	}
 
-	private void writeMail(EMail mail) {
+	private void writeMail(EMail mail, String messageId, String replyToMessageId) {
 
 		writeEmailHeaderLine("From", mail.getFrom());
 		writeEmailHeaderLine("Subject:", mail.getSubject());
@@ -351,6 +386,12 @@ public class DiffSplit implements Runnable {
 		writeEmailHeaderLine("Content-Type:", "text/plain; charset=\"UTF-8\"");
 		writeEmailHeaderLine("Mime-Version:", "1.0");
 		writeEmailHeaderLine("Content-Transfer-Encoding:", "8bit");
+		writeEmailHeaderLine("Message-Id:", messageId);
+
+		if(replyToMessageId != null) {
+			writeEmailHeaderLine("References:", replyToMessageId);
+			writeEmailHeaderLine("In-Reply-To:", replyToMessageId);
+		}
 
 		// finish header section
 		mboxWriter.println("");
@@ -358,7 +399,6 @@ public class DiffSplit implements Runnable {
 		for(String line: mail.getBody()) {
 			writeEmailBodyLine(line);
 		}
-//		patchNumber++;
 	}
 
 	private void writeEmailBodyLine(String line) {

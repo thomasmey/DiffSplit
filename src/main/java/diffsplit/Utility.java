@@ -8,8 +8,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 
 public class Utility {
+
+	private static Random random = new Random(System.currentTimeMillis());
 
 	public static String findPath(String sname) {
 		String dir = DiffSplit.getConfig().getProperty(Constants.LINUX_DIR) + "/scripts/coccinelle/";
@@ -99,5 +102,12 @@ public class Utility {
 		}
 		sl.add(line);
 		return sl;
+	}
+
+	public static String createMessageId(int patchNo, String id) {
+		long time = System.currentTimeMillis();
+		int rand = random.nextInt(Integer.MAX_VALUE);
+		String messageId = "<" + time + '-' + rand + '-' + patchNo + '-' + id + '-' + DiffSplit.getConfig().getProperty("mailFrom") + '>';
+		return messageId;
 	}
 }
