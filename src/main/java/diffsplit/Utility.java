@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
@@ -71,12 +72,11 @@ public class Utility {
 		proc.waitFor();
 
 		if(proc.exitValue() != 0)
-			return null;
-
-		String currentLine = reader.readLine();
+			return Collections.emptyList();
 
 		ArrayList<Maintainer> maArray = new ArrayList<Maintainer>();
-		while(currentLine!= null) {
+		String currentLine = reader.readLine();
+		while(currentLine != null) {
 
 			// parse output and create output table
 			Maintainer ma = Utility.parseMaintainer(currentLine);

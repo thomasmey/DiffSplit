@@ -61,6 +61,7 @@ public class Diff {
 	}
 
 	public void setMaintainers(List<Maintainer> maintainers) {
+		assert maintainers != null;
 		this.maintainers = maintainers;
 	}
 }
