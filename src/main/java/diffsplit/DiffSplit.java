@@ -116,41 +116,43 @@ public class DiffSplit implements Runnable {
 			List<EMail> mails = new ArrayList<EMail>();
 
 			try {
-				Diff prevDi = null;
-				EMail currentMail = createNewMail(sp); 
-				for(Diff di: sp.getDiffs()) {
-					log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
+				{
+					Diff prevDi = null;
+					EMail currentMail = createNewMail(sp); 
+					for(Diff di: sp.getDiffs()) {
+						log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
 
-					if(checkExcludePath(di.getNewFile()))
-						continue;
-					if(checkExcludeGitCommitDate(di.getNewFile()))
-						continue;
+						if(checkExcludePath(di.getNewFile()))
+							continue;
+						if(checkExcludeGitCommitDate(di.getNewFile()))
+							continue;
 
-					// check for same path!
-					if(prevDi != null) {
-						String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
-						String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
-						if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
-							// put this changes in one email
-							currentMail.appendBody(di.getDiffContent());
+						// check for same path!
+						if(prevDi != null) {
+							String path1 = prevDi.getNewFile().substring(0, prevDi.getNewFile().lastIndexOf(File.separatorChar));
+							String path2 = di.getNewFile().substring(0, di.getNewFile().lastIndexOf(File.separatorChar));
+							if (path1.compareTo(path2) == 0 || isOnTryHarderList(path1, path2)) {
+								// put this changes in one email
+								currentMail.appendBody(di.getDiffContent());
+							} else {
+								currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
+								prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
+								appendMailTo(currentMail, prevDi.getMaintainers());
+								mails.add(currentMail);
+
+								// new email
+								currentMail = createNewMail(sp);
+								currentMail.appendBody(di.getDiffContent());
+							}
 						} else {
-							currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
-							prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
-							appendMailTo(currentMail, prevDi.getMaintainers());
-							mails.add(currentMail);
-
-							// new email
-							currentMail = createNewMail(sp);
 							currentMail.appendBody(di.getDiffContent());
 						}
-					} else {
-						currentMail.appendBody(di.getDiffContent());
+						prevDi = di;
 					}
-					prevDi = di;
 				}
 
 				//run patch content though checkpatch program
-				for(int i = 0, n = mails.size(); i < n; i++) {
+				for(int i = 0; i < mails.size();) {
 					EMail mail = mails.get(i);
 					Process process = Runtime.getRuntime().exec(new String[] {"scripts/checkpatch.pl", "-"}, null, linuxDir);
 					{
@@ -171,12 +173,14 @@ public class DiffSplit implements Runnable {
 							currentLine = reader.readLine();
 						}
 						reader.close();
-						PrintWriter writer = new PrintWriter(sp.getName() + "checkpatch.rej");
-						currentMail.appendBody("Checkpatch output:");
-						currentMail.appendBody(result);
-						EMail.writeMail(writer, currentMail, null, null);
+						PrintWriter writer = new PrintWriter(sp.getName() + '.' + i + ".checkpatch.rej");
+						mail.appendBody("Checkpatch output:");
+						mail.appendBody(result);
+						EMail.writeMail(writer, mail, null, null);
 						writer.close();
 						mails.remove(i);
+					} else {
+						i++;
 					}
 				}
 
