@@ -1,11 +1,13 @@
 package diffsplit;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
@@ -27,14 +29,15 @@ import java.util.logging.Logger;
 
 public class DiffSplit implements Runnable {
 
-	private List<SPatch> spatchList = new ArrayList<SPatch>();
 	private static Properties props;
+	private static Logger log;
+
+	private List<SPatch> spatchList = new ArrayList<SPatch>();
 	private File linuxDir;
 	private File patchDir;
 	private PrintWriter mboxWriter;
 	private SimpleDateFormat fromDateFormater;
 	private Properties messages;
-	private Logger log;
 	private String runId;
 
 	/**
@@ -42,6 +45,9 @@ public class DiffSplit implements Runnable {
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
+
+		// set Logger
+		log = Logger.getAnonymousLogger();
 
 		// get global config option
 		InputStream inputStream = DiffSplit.class.getResourceAsStream("config.xml");
@@ -69,7 +75,6 @@ public class DiffSplit implements Runnable {
 		linuxDir = new File(props.getProperty(Constants.LINUX_DIR));
 		patchDir = new File(args[0]);
 		fromDateFormater = new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", Locale.US);
-		log = Logger.getAnonymousLogger();
 	}
 
 	public void run() {
@@ -144,8 +149,39 @@ public class DiffSplit implements Runnable {
 					prevDi = di;
 				}
 
+				//run patch content though checkpatch program
+				for(int i = 0, n = mails.size(); i < n; i++) {
+					EMail mail = mails.get(i);
+					Process process = Runtime.getRuntime().exec(new String[] {"scripts/checkpatch.pl", "-"}, null, linuxDir);
+					{
+						BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+						for(String str : mail.getBody()) {
+							writer.write(str);
+							writer.newLine();
+						}
+						writer.close();
+					}
+					int rc = process.waitFor();
+					if(rc != 0) {
+						List<String> result = new ArrayList<String>();
+						BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+						String currentLine = reader.readLine();
+						while(currentLine != null) {
+							result.add(currentLine);
+							currentLine = reader.readLine();
+						}
+						reader.close();
+						PrintWriter writer = new PrintWriter(sp.getName() + "checkpatch.rej");
+						currentMail.appendBody("Checkpatch output:");
+						currentMail.appendBody(result);
+						EMail.writeMail(writer, currentMail, null, null);
+						writer.close();
+						mails.remove(i);
+					}
+				}
+
 				// create cover email
-				{
+				if(mails.size() > 0) {
 					EMail cover = new EMail();
 					String currentDate = fromDateFormater.format(new Date());
 					cover.setFrom(props.getProperty("mailFrom") + ' ' + currentDate);
@@ -155,23 +191,27 @@ public class DiffSplit implements Runnable {
 					messages.add("Found by coccinelle spatch \"" + Utility.findPath(sp.getName()) +"\"");
 					messages.add("");
 					messages.add("Run against version " + runId);
+					messages.add("");
+					messages.add("Let me know when you as a maintainer are not interested in these kind of patches.");
+					messages.add("I can exclude you by path; all cocci findings in e.g. \"drivers/scsi\" will never");
+					messages.add("be reported again by this semi-automatic cocci program runs.");
 					cover.appendBody(messages);
 					cover.setTo("linux-kernel@vger.kernel.org");
 					mails.add(0, cover);
-				}
 
-				String coverMessageId = null;
-				for(int i = 0, n = mails.size() - 1; i <= n; i++) {
-					EMail mail = mails.get(i);
-					String subject = mail.getSubject();
-					mail.setSubject("[PATCH " + i + "/" + n +"] " + subject );
-					String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
-					writeMail(mail, messageId, coverMessageId);
-					if(i == 0) {
-						coverMessageId = messageId;
+					String coverMessageId = null;
+					for(int i = 0, n = mails.size() - 1; i <= n; i++) {
+						EMail mail = mails.get(i);
+						String subject = mail.getSubject();
+						mail.setSubject("[PATCH " + i + "/" + n +"] " + subject );
+						String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
+						EMail.writeMail(mboxWriter, mail, messageId, coverMessageId);
+						if(i == 0) {
+							coverMessageId = messageId;
+						}
 					}
+					mboxWriter.flush();
 				}
-				mboxWriter.flush();
 
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -220,21 +260,18 @@ public class DiffSplit implements Runnable {
 			return false;
 		}
 
-		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-
-		proc.waitFor();
-
-		if(proc.exitValue() != 0) {
-			InputStream err = proc.getErrorStream();
-			int b = 0;
-			b = err.read();
-			while(b >= 0) {
-				System.out.append((char)b);
-				b=err.read();
+		int rc = proc.waitFor();
+		if(rc != 0) {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
+			String line = reader.readLine();
+			while(line != null) {
+				DiffSplit.getLog().log(Level.SEVERE, line);
+				line = reader.readLine();
 			}
 			return false;
 		}
 
+		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 		String currentLine = reader.readLine();
 		if(currentLine == null)
 			return false;
@@ -280,21 +317,18 @@ public class DiffSplit implements Runnable {
 
 		Process proc = Runtime.getRuntime().exec("git log -n 10 --no-merges --pretty=format:%s -- " + newFile + "\n", null, linuxDir);
 
-		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-
-		proc.waitFor();
-
-		if(proc.exitValue() != 0) {
-			InputStream err = proc.getErrorStream();
-			int b = 0;
-			b = err.read();
-			while(b >= 0) {
-				System.out.append((char)b);
-				b=err.read();
+		int rc = proc.waitFor();
+		if(rc != 0) {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
+			String line = reader.readLine();
+			while(line != null) {
+				DiffSplit.getLog().log(Level.SEVERE, line);
+				line = reader.readLine();
 			}
 			return null;
 		}
 
+		BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 		String currentLine = reader.readLine();
 
 		String prefix;
@@ -377,50 +411,12 @@ public class DiffSplit implements Runnable {
 		return currentMail;
 	}
 
-	private void writeMail(EMail mail, String messageId, String replyToMessageId) {
-
-		writeEmailHeaderLine("From", mail.getFrom());
-		writeEmailHeaderLine("Subject:", mail.getSubject());
-		writeEmailHeaderLine("From:", mail.getFrom());
-		writeEmailHeaderLine("To:", mail.getTo());
-		writeEmailHeaderLine("Content-Type:", "text/plain; charset=\"UTF-8\"");
-		writeEmailHeaderLine("Mime-Version:", "1.0");
-		writeEmailHeaderLine("Content-Transfer-Encoding:", "8bit");
-		writeEmailHeaderLine("Message-Id:", messageId);
-
-		if(replyToMessageId != null) {
-			writeEmailHeaderLine("References:", replyToMessageId);
-			writeEmailHeaderLine("In-Reply-To:", replyToMessageId);
-		}
-
-		// finish header section
-		mboxWriter.println("");
-
-		for(String line: mail.getBody()) {
-			writeEmailBodyLine(line);
-		}
-	}
-
-	private void writeEmailBodyLine(String line) {
-		mboxWriter.println(line);
-	}
-
-	private void writeEmailHeaderLine(String field, String line) {
-
-		List<String> sl = new ArrayList<String>();
-		List<String> lines = Utility.splitLineOn(78, line);
-		sl.addAll(lines);
-
-		for(int i = 0, n = sl.size(); i < n; i++) {
-			String l = sl.get(i);
-			if(i == 0)
-				mboxWriter.println(field + ' ' + l);
-			else
-				mboxWriter.println(' ' + l);
-		}
-	}
-
 	public static Properties getConfig() {
 		return DiffSplit.props;
 	}
+
+	public static Logger getLog() {
+		return log;
+	}
+
 }

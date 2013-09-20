@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.logging.Level;
 
 public class Utility {
 
@@ -18,8 +19,11 @@ public class Utility {
 		String dir = DiffSplit.getConfig().getProperty(Constants.LINUX_DIR) + "/scripts/coccinelle/";
 		try {
 			Process process = Runtime.getRuntime().exec(new String[] {"find", dir, "-name", sname + "*"} );
-			process.waitFor();
-
+			int rc = process.waitFor();
+			if(rc != 0) {
+				DiffSplit.getLog().log(Level.SEVERE,"Cannot find dir of spatch {0}", sname);
+				return null;
+			}
 			BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
 			String currentLine =  reader.readLine();
 			reader.close();
