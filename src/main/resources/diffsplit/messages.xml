@@ -20,4 +20,6 @@
 <entry key="simple_open">This removes an open coded simple_open() function and replaces file operations references to the function with simple_open() instead.</entry>
 <entry key="ptr_ret">Use PTR_ERR_OR_ZERO rather than if(IS_ERR(...)) + PTR_ERR.</entry>
 <entry key="boolinit">Bool initializations should use true and false. Bool tests don't need comparisons.</entry>
+
+<entry key="array-size">Use ARRAY_SIZE macro, rather than explicitly coding some variant of it yourself.</entry>
 </properties>

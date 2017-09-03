@@ -17,7 +17,6 @@ public class Diff {
 
 	public void setDiffContent(List<String> diffContent) {
 		this.diffContent = diffContent;
-
 		parseCommandLine(diffContent.get(0));
 	}
 

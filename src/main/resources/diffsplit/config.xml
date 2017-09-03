@@ -2,8 +2,8 @@
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
 <comment>DiffSplit config parameters</comment>
-<entry key="linuxDir">/home/thomas/source/linux</entry>
-<entry key="mboxFileName">cocci-patches.mbox</entry>
+<entry key="linuxDir">/home/thomas/git/linux</entry>
+<entry key="mboxFileName">patches.mbox</entry>
 <entry key="excludeGitCommitDateAgeMonth">12</entry>
 <entry key="mailFrom">thomas@m3y3r.de</entry>
 <entry key="mailSOB">Thomas Meyer &lt;thomas@m3y3r.de&gt;</entry>

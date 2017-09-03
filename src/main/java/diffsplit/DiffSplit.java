@@ -34,7 +34,7 @@ public class DiffSplit implements Runnable {
 
 	private List<SPatch> spatchList = new ArrayList<SPatch>();
 	private File linuxDir;
-	private File patchDir;
+	private File patchFile;
 	private PrintWriter mboxWriter;
 	private SimpleDateFormat fromDateFormater;
 	private Properties messages;
@@ -60,12 +60,12 @@ public class DiffSplit implements Runnable {
 	DiffSplit(String[] args) throws IOException {
 
 		if(args.length < 1)
-			throw new IllegalArgumentException("Must provided spatch directory!");
-
-		if(args.length < 2)
 			throw new IllegalArgumentException("Must provided run/commit id!");
 
-		runId = args[1];
+		if(args.length < 2)
+			throw new IllegalArgumentException("Must provided patch file or directory!");
+
+		runId = args[0];
 
 		// get commit messages for the spatches
 		InputStream inputStream = this.getClass().getResourceAsStream("messages.xml");
@@ -73,29 +73,11 @@ public class DiffSplit implements Runnable {
 		this.messages.loadFromXML(inputStream);
 
 		linuxDir = new File(props.getProperty(Constants.LINUX_DIR));
-		patchDir = new File(args[0]);
+		patchFile = new File(args[1]);
 		fromDateFormater = new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", Locale.US);
 	}
 
 	public void run() {
-
-		if(!patchDir.isDirectory())
-			throw new IllegalArgumentException("patchDir must be a directory!");
-
-		// Parse all spatch files in the given directory
-		File[] patches = patchDir.listFiles();
-		for(File patch : patches) {
-			if(!patch.isFile())
-				continue;
-
-			if(!patch.getName().endsWith(".spatch"))
-				continue;
-
-			SPatchProcessor processor = null;
-			processor = new SPatchProcessor(patch, this.messages);
-			List<SPatch> spatches = processor.call();
-			spatchList.addAll(spatches);
-		}
 
 		// setup output writer
 		try {
@@ -106,6 +88,15 @@ public class DiffSplit implements Runnable {
 		} catch (UnsupportedEncodingException e1) {
 			e1.printStackTrace();
 			return;
+		}
+
+		File[] patches = getPatches();
+		patchFile.listFiles();
+		for(File patch : patches) {
+			SPatchProcessor processor = null;
+			processor = new SPatchProcessor(patch, this.messages);
+			List<SPatch> spatches = processor.call();
+			spatchList.addAll(spatches);
 		}
 
 		// Parse SPatch objects
@@ -190,15 +181,17 @@ public class DiffSplit implements Runnable {
 					String currentDate = fromDateFormater.format(new Date());
 					cover.setFrom(props.getProperty("mailFrom") + ' ' + currentDate);
 					cover.setSubject(sp.getTitle() + " - " + runId);
+
 					String message = messages.getProperty(sp.getName());
 					List<String> messages = Utility.splitLineOn(78, message);
-					messages.add("Found by coccinelle spatch \"" + Utility.findPath(sp.getName()) +"\"");
+					messages.add("");
+					messages.addAll(Utility.splitLineOn(78, sp.getFoundWith()));
 					messages.add("");
 					messages.add("Run against version " + runId);
 					messages.add("");
 					messages.add("Let me know when you as a maintainer are not interested in these kind of patches.");
-					messages.add("I can exclude you by path; all cocci findings in e.g. \"drivers/scsi\" will never");
-					messages.add("be reported again by this semi-automatic cocci program runs.");
+					messages.add("I can exclude you by path; e.g. all findings in \"drivers/scsi\" will never");
+					messages.add("be reported again by this semi-automatic program runs.");
 					cover.appendBody(messages);
 					cover.setTo("linux-kernel@vger.kernel.org");
 					mails.add(0, cover);
@@ -217,18 +210,27 @@ public class DiffSplit implements Runnable {
 					mboxWriter.flush();
 				}
 
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
+			} catch (InterruptedException | IOException e) {
 				e.printStackTrace();
 			}
 		}
 	}
 
-	private boolean isOnTryHarderList(String path1, String path2) {
+	private File[] getPatches() {
+		if(patchFile.isDirectory()) {
+			return patchFile.listFiles(f -> {
+				if(f.isFile() && f.getName().endsWith(".spatch"))
+					return true;
+				else return false;
+			});
+		} else if(patchFile.isFile()) {
+			return new File[] {patchFile};
+		} else {
+			return new File[0];
+		}
+	}
 
+	private boolean isOnTryHarderList(String path1, String path2) {
 		Enumeration<Object> e1 = props.keys();
 		while(e1.hasMoreElements()) {
 			Object key = e1.nextElement();
