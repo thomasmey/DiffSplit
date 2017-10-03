@@ -113,10 +113,14 @@ public class DiffSplit implements Runnable {
 					for(Diff di: sp.getDiffs()) {
 						log.log(Level.INFO, "Processing spatch \"{0}\" - diff \"{1}\"", new String[] { sp.getName(), di.getOldFile() } );
 
-						if(checkExcludePath(di.getNewFile()))
+						if(checkExcludePath(di.getNewFile())) {
+							log.log(Level.INFO, "excluded by path");
 							continue;
-						if(checkExcludeGitCommitDate(di.getNewFile()))
+						}
+						if(checkExcludeGitCommitDate(di.getNewFile())) {
+							log.log(Level.INFO, "excluded by date");
 							continue;
+						}
 
 						// check for same path!
 						if(prevDi != null) {
@@ -136,10 +140,16 @@ public class DiffSplit implements Runnable {
 								currentMail.appendBody(di.getDiffContent());
 							}
 						} else {
+							// first diff in spatch
 							currentMail.appendBody(di.getDiffContent());
 						}
 						prevDi = di;
 					}
+					//FIXME: is this correct? or only in case of one diff in one spatch?
+					currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
+					prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
+					appendMailTo(currentMail, prevDi.getMaintainers());
+					mails.add(currentMail);
 				}
 
 				//run patch content though checkpatch program
@@ -397,7 +407,9 @@ public class DiffSplit implements Runnable {
 			if(m.getRole().charAt(i)== '(')
 				i++;
 			if(m.getRole().startsWith("maintainer", i) ||
-					m.getRole().startsWith("open list", i) ) {
+			   m.getRole().startsWith("supporter", i) ||
+			   m.getRole().startsWith("moderated list", i) ||
+			   m.getRole().startsWith("open list", i) ) {
 				currentMail.addTo(m.getEmail());
 			}
 		}

@@ -2,6 +2,7 @@ package diffsplit;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Callable;
@@ -37,16 +38,19 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 			reader = new BufferedReader(new FileReader(patch));
 
 			String name = patch.getName().substring(0, patch.getName().lastIndexOf('.'));
-			String title = "Use ARRAY_SIZE macro";
-			String foundWith =
-					"Found with: find -type f -name \"*.c\" -o -name \"*.h\" | xargs perl -p -i -e 's/\\bsizeof\\s*\\(\\s*(\\w+)\\s*\\)\\s*\\ /\\s*sizeof\\s*\\(\\s*\\1\\s*\\[\\s*0\\s*\\]\\s*\\) /ARRAY_SIZE(\\1)/g' and manual check/verification."
-					;
+			String title = null; // "Use ARRAY_SIZE macro";
+			String foundWith = null;
+					//"Found with: find -type f -name \"*.c\" -o -name \"*.h\" | xargs perl -p -i -e 's/\\bsizeof\\s*\\(\\s*(\\w+)\\s*\\)\\s*\\ /\\s*sizeof\\s*\\(\\s*\\1\\s*\\[\\s*0\\s*\\]\\s*\\) /ARRAY_SIZE(\\1)/g' and manual check/verification.";
+
 			currentSPatch = new SPatch(name, title, foundWith);
 			{
-				String message = messages.getProperty(name);
-				assert message != null : patch.getName();
+				String message = messages.getProperty(currentSPatch.getName());
+				if(message == null) {
+					System.out.println("Skipping patch " + name + " because of missing message!");
+					return Collections.emptyList();
+				}
 				List<String> messages = Utility.splitLineOn(78, message);
-				messages.addAll(Utility.splitLineOn(TEXT_WIDTH, foundWith));
+				messages.addAll(Utility.splitLineOn(TEXT_WIDTH, currentSPatch.getFoundWith()));
 				currentSPatch.setMessage(messages);
 			}
 
