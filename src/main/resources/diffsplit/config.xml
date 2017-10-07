@@ -8,4 +8,5 @@
 <entry key="mailFrom">thomas@m3y3r.de</entry>
 <entry key="mailSOB">Thomas Meyer &lt;thomas@m3y3r.de&gt;</entry>
 <entry key="includePath">drivers/staging/</entry>
+<entry key="doCheckpatch">false</entry>
 </properties>

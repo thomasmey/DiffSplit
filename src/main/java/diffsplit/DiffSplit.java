@@ -159,35 +159,37 @@ public class DiffSplit implements Runnable {
 				}
 
 				//run patch content though checkpatch program
-				for(int i = 0; i < mails.size();) {
-					EMail mail = mails.get(i);
-					Process process = Runtime.getRuntime().exec(new String[] {"scripts/checkpatch.pl", "-"}, null, linuxDir);
-					{
-						BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
-						for(String str : mail.getBody()) {
-							writer.write(str);
-							writer.newLine();
+				if(props.getProperty("doCheckpatch", Boolean.TRUE.toString()).equals(Boolean.TRUE.toString())) {
+					for(int i = 0; i < mails.size();) {
+						EMail mail = mails.get(i);
+						Process process = Runtime.getRuntime().exec(new String[] {"scripts/checkpatch.pl", "-"}, null, linuxDir);
+						{
+							BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+							for(String str : mail.getBody()) {
+								writer.write(str);
+								writer.newLine();
+							}
+							writer.close();
 						}
-						writer.close();
-					}
-					int rc = process.waitFor();
-					if(rc != 0) {
-						List<String> result = new ArrayList<String>();
-						BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-						String currentLine = reader.readLine();
-						while(currentLine != null) {
-							result.add(currentLine);
-							currentLine = reader.readLine();
+						int rc = process.waitFor();
+						if(rc != 0) {
+							List<String> result = new ArrayList<String>();
+							BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+							String currentLine = reader.readLine();
+							while(currentLine != null) {
+								result.add(currentLine);
+								currentLine = reader.readLine();
+							}
+							reader.close();
+							PrintWriter writer = new PrintWriter(sp.getName() + '.' + i + ".checkpatch.rej");
+							mail.appendBody("Checkpatch output:");
+							mail.appendBody(result);
+							EMail.writeMail(writer, mail, null, null);
+							writer.close();
+							mails.remove(i);
+						} else {
+							i++;
 						}
-						reader.close();
-						PrintWriter writer = new PrintWriter(sp.getName() + '.' + i + ".checkpatch.rej");
-						mail.appendBody("Checkpatch output:");
-						mail.appendBody(result);
-						EMail.writeMail(writer, mail, null, null);
-						writer.close();
-						mails.remove(i);
-					} else {
-						i++;
 					}
 				}
 
