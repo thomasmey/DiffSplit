@@ -184,7 +184,7 @@ public class DiffSplit implements Runnable {
 							PrintWriter writer = new PrintWriter(sp.getName() + '.' + i + ".checkpatch.rej");
 							mail.appendBody("Checkpatch output:");
 							mail.appendBody(result);
-							EMail.writeMail(writer, mail, null, null);
+							EMail.writeMail(writer, mail, null, null, null);
 							writer.close();
 							mails.remove(i);
 						} else {
@@ -220,15 +220,18 @@ public class DiffSplit implements Runnable {
 					// write emails to mbox file
 					String coverMessageId = null;
 					for(int i = 0, n = mails.size() - 1; i <= n; i++) {
+						Map<String, String> addHeaders = new HashMap<>();
+
 						EMail mail = mails.get(i);
 						subject = mail.getSubject();
 						if(i > 0) { // not cover email
 							subject = "[PATCH] " + subject;
 //							subject = "[PATCH " + i + "/" + n +"] " + subject;
+							addHeaders.put("X-Serial-No:", String.valueOf(i));
 						}
 						mail.setSubject(subject);
 						String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
-						EMail.writeMail(mboxWriter, mail, messageId, coverMessageId);
+						EMail.writeMail(mboxWriter, mail, messageId, coverMessageId, addHeaders);
 						if(i == 0) {
 							coverMessageId = messageId;
 						}
@@ -329,12 +332,15 @@ public class DiffSplit implements Runnable {
 		while(e1.hasMoreElements()) {
 			Object key = e1.nextElement();
 			if(key instanceof String) {
-				if(((String)key).startsWith(searchKey)) {
+				if(((String)key).equals(searchKey)) {
 					Object value = props.get(key);
 
 					if(value instanceof String) {
-						if (path.startsWith((String)value))
-							return true;
+						String[] paths = ((String) value).split(",");
+						for(String p: paths) {
+							if (path.startsWith(p))
+								return true;
+						}
 					}
 				}
 			}

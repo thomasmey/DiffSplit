@@ -18,6 +18,7 @@
 		"body": "Remove casting the values returned by memory allocation functions like kmalloc, kzalloc, kmem_cache_alloc, kmem_cache_zalloc etc."
 	},
 	"boolinit": {
+		"subject": "Fix bool initialization/comparsion",
 		"body": "Bool initializations should use true and false. Bool tests don't need comparisons."
 	},
 	"semicolon": {

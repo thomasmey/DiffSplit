@@ -3,6 +3,7 @@ package diffsplit;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class EMail {
 
@@ -59,7 +60,7 @@ public class EMail {
 	}
 
 	//FIXME: move to EMailWriter or something.
-	public static void writeMail(PrintWriter writer, EMail mail, String messageId, String replyToMessageId) {
+	public static void writeMail(PrintWriter writer, EMail mail, String messageId, String replyToMessageId, Map<String,String> additionalHeaders) {
 
 		writeEmailHeaderLine(writer, "From", mail.getFrom());
 		writeEmailHeaderLine(writer, "Subject:", mail.getSubject());
@@ -77,6 +78,9 @@ public class EMail {
 		if(replyToMessageId != null) {
 			writeEmailHeaderLine(writer, "References:", replyToMessageId);
 			writeEmailHeaderLine(writer, "In-Reply-To:", replyToMessageId);
+		}
+		if(additionalHeaders != null) {
+			additionalHeaders.forEach( (k,v) -> writeEmailHeaderLine(writer, k,v));			
 		}
 
 		// finish header section
