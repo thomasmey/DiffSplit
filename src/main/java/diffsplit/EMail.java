@@ -68,6 +68,8 @@ public class EMail {
 		writeEmailHeaderLine(writer, "Content-Type:", "text/plain; charset=\"UTF-8\"");
 		writeEmailHeaderLine(writer, "Mime-Version:", "1.0");
 		writeEmailHeaderLine(writer, "Content-Transfer-Encoding:", "8bit");
+		writeEmailHeaderLine(writer, "X-Patch:", "Cocci");
+		writeEmailHeaderLine(writer, "X-Mailer:", "DiffSplit");
 		if(messageId == null)
 			messageId = Utility.createMessageId(0, Constants.MESSAGE_ID_TOOL);
 		writeEmailHeaderLine(writer, "Message-ID:", messageId);

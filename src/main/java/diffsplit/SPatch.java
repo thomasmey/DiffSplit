@@ -12,17 +12,12 @@ public class SPatch {
 	private final String foundWith;
 
 	SPatch(String sname, String title, String foundWith) {
-		if(sname == null) throw new IllegalArgumentException();
+		if(sname == null || title == null) throw new IllegalArgumentException();
 
 		message = new ArrayList<String>();
 		diffList = new ArrayList<Diff>();
 		this.name = sname;
-
-		if(title == null) {
-			this.title = "Cocci spatch \"" + getName() + "\"";
-		} else {
-			this.title = title;
-		}
+		this.title = title;
 
 		if(foundWith == null) {
 			this.foundWith = "Found by coccinelle spatch \"" + Utility.findPath(getName()) +"\"";

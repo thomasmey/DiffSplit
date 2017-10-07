@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Utility {
 
 	private static Random random = new Random(System.currentTimeMillis());
+	private static Logger log = Logger.getLogger(Utility.class.getName());
 
 	public static String findPath(String sname) {
 		String dir = DiffSplit.getConfig().getProperty(Constants.LINUX_DIR) + "/scripts/coccinelle/";
@@ -21,7 +23,7 @@ public class Utility {
 			Process process = Runtime.getRuntime().exec(new String[] {"find", dir, "-name", sname + "*"} );
 			int rc = process.waitFor();
 			if(rc != 0) {
-				DiffSplit.getLog().log(Level.SEVERE,"Cannot find dir of spatch {0}", sname);
+				log.log(Level.SEVERE,"Cannot find dir of spatch {0}", sname);
 				return null;
 			}
 			BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));

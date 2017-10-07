@@ -1,0 +1,28 @@
+{
+	"array_size": {
+		"body": "Use ARRAY_SIZE macro, rather than explicitly coding some variant of it yourself."
+	},
+	"vma_pages": {
+		"body": "Use vma_pages function on vma object instead of explicit computation."
+	},
+	"setup_timer": {
+		"body": "Use setup_timer function instead of initializing timer with the function."
+	},
+	"pool_zalloc-simple": {
+		"body": "Use *_pool_zalloc rather than *_pool_alloc followed by memset with 0."
+	},
+	"of_table": {
+		"body": "Make sure (of/i2c/platform)_device_id tables are NULL terminated."
+	},
+	"alloc_cast": {
+		"body": "Remove casting the values returned by memory allocation functions like kmalloc, kzalloc, kmem_cache_alloc, kmem_cache_zalloc etc."
+	},
+	"boolinit": {
+		"body": "Bool initializations should use true and false. Bool tests don't need comparisons."
+	},
+	"semicolon": {
+		"subject": "Remove unneeded semicolon.",
+		"body": "Remove unneeded semicolon."
+	}
+
+}

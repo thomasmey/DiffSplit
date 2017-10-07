@@ -27,17 +27,21 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+
 public class DiffSplit implements Runnable {
 
 	private static Properties props;
-	private static Logger log;
+
+	private Logger log = Logger.getLogger(DiffSplit.class.getName());
 
 	private List<SPatch> spatchList = new ArrayList<SPatch>();
 	private File linuxDir;
 	private File patchFile;
 	private PrintWriter mboxWriter;
 	private SimpleDateFormat fromDateFormater;
-	private Properties messages;
+	private JsonObject messages;
 	private String runId;
 
 	/**
@@ -45,9 +49,6 @@ public class DiffSplit implements Runnable {
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
-
-		// set Logger
-		log = Logger.getAnonymousLogger();
 
 		// get global config option
 		InputStream inputStream = DiffSplit.class.getResourceAsStream("config.xml");
@@ -68,9 +69,8 @@ public class DiffSplit implements Runnable {
 		runId = args[0];
 
 		// get commit messages for the spatches
-		InputStream inputStream = this.getClass().getResourceAsStream("messages.xml");
-		this.messages = new Properties();
-		this.messages.loadFromXML(inputStream);
+		InputStream inputStream = this.getClass().getResourceAsStream("messages.json");
+		this.messages = Json.createReader(new InputStreamReader(inputStream)).readObject();
 
 		linuxDir = new File(props.getProperty(Constants.LINUX_DIR));
 		patchFile = new File(args[1]);
@@ -117,6 +117,12 @@ public class DiffSplit implements Runnable {
 							log.log(Level.INFO, "excluded by path");
 							continue;
 						}
+
+						if(!checkIncludePath(di.getNewFile())) {
+							log.log(Level.INFO, "not included by path");
+							continue;
+						}
+
 						if(checkExcludeGitCommitDate(di.getNewFile())) {
 							log.log(Level.INFO, "excluded by date");
 							continue;
@@ -130,7 +136,7 @@ public class DiffSplit implements Runnable {
 								// put this changes in one email
 								currentMail.appendBody(di.getDiffContent());
 							} else {
-								currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
+								currentMail.setSubject(getGitLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
 								prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
 								appendMailTo(currentMail, prevDi.getMaintainers());
 								mails.add(currentMail);
@@ -146,7 +152,7 @@ public class DiffSplit implements Runnable {
 						prevDi = di;
 					}
 					//FIXME: is this correct? or only in case of one diff in one spatch?
-					currentMail.setSubject(getGittLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
+					currentMail.setSubject(getGitLogPrefix(prevDi.getNewFile()) + ": "+ sp.getTitle());
 					prevDi.setMaintainers(Utility.getMaintainer(prevDi.getNewFile()));
 					appendMailTo(currentMail, prevDi.getMaintainers());
 					mails.add(currentMail);
@@ -185,32 +191,40 @@ public class DiffSplit implements Runnable {
 					}
 				}
 
+				log.info("Created " + mails.size() + " emails");
 				// create cover email
 				if(mails.size() > 0) {
 					EMail cover = new EMail();
 					String currentDate = fromDateFormater.format(new Date());
 					cover.setFrom(props.getProperty("mailFrom") + ' ' + currentDate);
-					cover.setSubject(sp.getTitle() + " - " + runId);
+					String subject = "Cocci spatch \"" + sp.getName() + "\"" + " - " + runId;
+					cover.setSubject(subject);
 
-					String message = messages.getProperty(sp.getName());
+					String message = messages.getJsonObject(sp.getName()).getString("body");
 					List<String> messages = Utility.splitLineOn(78, message);
 					messages.add("");
 					messages.addAll(Utility.splitLineOn(78, sp.getFoundWith()));
 					messages.add("");
 					messages.add("Run against version " + runId);
 					messages.add("");
-					messages.add("Let me know when you as a maintainer are not interested in these kind of patches.");
-					messages.add("I can exclude you by path; e.g. all findings in \"drivers/scsi\" will never");
-					messages.add("be reported again by this semi-automatic program runs.");
+					messages.add("P.S. If you find this email unwanted, set up a procmail rule junking on"); 
+					messages.add("the header:"); 
+					messages.add("");
+					messages.add("X-Patch: Cocci");
 					cover.appendBody(messages);
 					cover.setTo("linux-kernel@vger.kernel.org");
 					mails.add(0, cover);
 
+					// write emails to mbox file
 					String coverMessageId = null;
 					for(int i = 0, n = mails.size() - 1; i <= n; i++) {
 						EMail mail = mails.get(i);
-						String subject = mail.getSubject();
-						mail.setSubject("[PATCH " + i + "/" + n +"] " + subject );
+						subject = mail.getSubject();
+						if(i > 0) { // not cover email
+							subject = "[PATCH] " + subject;
+//							subject = "[PATCH " + i + "/" + n +"] " + subject;
+						}
+						mail.setSubject(subject);
 						String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
 						EMail.writeMail(mboxWriter, mail, messageId, coverMessageId);
 						if(i == 0) {
@@ -281,7 +295,7 @@ public class DiffSplit implements Runnable {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
 			String line = reader.readLine();
 			while(line != null) {
-				DiffSplit.getLog().log(Level.SEVERE, line);
+				log.log(Level.SEVERE, line);
 				line = reader.readLine();
 			}
 			return false;
@@ -308,26 +322,33 @@ public class DiffSplit implements Runnable {
 		return false;
 	}
 
-	private boolean checkExcludePath(String newFile) {
+	private static boolean checkPath(Properties props, String searchKey, String path) {
 		Enumeration<Object> e1 = props.keys();
 		while(e1.hasMoreElements()) {
 			Object key = e1.nextElement();
 			if(key instanceof String) {
-				if(((String)key).startsWith("excludePath")) {
+				if(((String)key).startsWith(searchKey)) {
 					Object value = props.get(key);
 
 					if(value instanceof String) {
-						if (newFile.startsWith((String)value))
+						if (path.startsWith((String)value))
 							return true;
 					}
 				}
 			}
 		}
-
 		return false;
 	}
 
-	private String getGittLogPrefix(String newFile) throws IOException, InterruptedException {
+	private boolean checkExcludePath(String path) {
+		return checkPath(props, "excludePath", path);
+	}
+
+	private boolean checkIncludePath(String path) {
+		return checkPath(props, "includePath", path);
+	}
+
+	private String getGitLogPrefix(String newFile) throws IOException, InterruptedException {
 
 		Map<String,Integer> hs = new HashMap<String, Integer>();
 
@@ -338,7 +359,7 @@ public class DiffSplit implements Runnable {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
 			String line = reader.readLine();
 			while(line != null) {
-				DiffSplit.getLog().log(Level.SEVERE, line);
+				log.log(Level.SEVERE, line);
 				line = reader.readLine();
 			}
 			return null;
@@ -432,9 +453,4 @@ public class DiffSplit implements Runnable {
 	public static Properties getConfig() {
 		return DiffSplit.props;
 	}
-
-	public static Logger getLog() {
-		return log;
-	}
-
 }

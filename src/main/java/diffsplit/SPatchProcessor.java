@@ -1,22 +1,27 @@
 package diffsplit;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.Callable;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.json.JsonObject;
 
 public class SPatchProcessor implements Callable<List<SPatch>>{
 
 	private static final int TEXT_WIDTH = 78;
 
+	private Logger log = Logger.getLogger(SPatchProcessor.class.getName());
+
 	private enum ParserMode {INIT, WARNING, PATCH_START, PATCH_CONTENT, END_OF_FILE };
+
 	private ParserMode oldmode = ParserMode.INIT;
 	private ParserMode newmode = ParserMode.INIT;
 
@@ -25,9 +30,9 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 	private Diff currentDiff;
 	private List<String> diff = new ArrayList<String>();
 	private SPatch currentSPatch;
-	private Properties messages;
+	private JsonObject messages;
 
-	public SPatchProcessor(File patch, Properties messages) {
+	public SPatchProcessor(File patch, JsonObject messages) {
 		this.patch = patch;
 		this.messages = messages;
 	}
@@ -38,19 +43,18 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 			reader = new BufferedReader(new FileReader(patch));
 
 			String name = patch.getName().substring(0, patch.getName().lastIndexOf('.'));
-			String title = null; // "Use ARRAY_SIZE macro";
+			String title = messages.getJsonObject(name).getString("subject");
 			String foundWith = null;
-					//"Found with: find -type f -name \"*.c\" -o -name \"*.h\" | xargs perl -p -i -e 's/\\bsizeof\\s*\\(\\s*(\\w+)\\s*\\)\\s*\\ /\\s*sizeof\\s*\\(\\s*\\1\\s*\\[\\s*0\\s*\\]\\s*\\) /ARRAY_SIZE(\\1)/g' and manual check/verification.";
+			//"Found with: find -type f -name \"*.c\" -o -name \"*.h\" | xargs perl -p -i -e 's/\\bsizeof\\s*\\(\\s*(\\w+)\\s*\\)\\s*\\ /\\s*sizeof\\s*\\(\\s*\\1\\s*\\[\\s*0\\s*\\]\\s*\\) /ARRAY_SIZE(\\1)/g' and manual check/verification.";
 
 			currentSPatch = new SPatch(name, title, foundWith);
 			{
-				String message = messages.getProperty(currentSPatch.getName());
+				String message = messages.getJsonObject(currentSPatch.getName()).getString("body");
 				if(message == null) {
-					System.out.println("Skipping patch " + name + " because of missing message!");
+					log.log(Level.INFO, "Skipping patch " + name + " because of missing message!");
 					return Collections.emptyList();
 				}
 				List<String> messages = Utility.splitLineOn(78, message);
-				messages.addAll(Utility.splitLineOn(TEXT_WIDTH, currentSPatch.getFoundWith()));
 				currentSPatch.setMessage(messages);
 			}
 
@@ -100,7 +104,6 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 
 		return null;
 	}
-
 
 	// check for group change
 	private void checkModeChange() {
