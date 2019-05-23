@@ -24,6 +24,10 @@
 	"semicolon": {
 		"subject": "Remove unneeded semicolon.",
 		"body": "Remove unneeded semicolon."
+	},
+	"ifnullfree": {
+		"subject": "NULL check before some freeing functions is not needed.",
+		"body": "NULL check before some freeing functions is not needed."
 	}
 
 }

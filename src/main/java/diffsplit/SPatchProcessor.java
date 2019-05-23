@@ -43,6 +43,7 @@ public class SPatchProcessor implements Callable<List<SPatch>>{
 			reader = new BufferedReader(new FileReader(patch));
 
 			String name = patch.getName().substring(0, patch.getName().lastIndexOf('.'));
+			System.out.println("name=" + name);
 			String title = messages.getJsonObject(name).getString("subject");
 			String foundWith = null;
 			//"Found with: find -type f -name \"*.c\" -o -name \"*.h\" | xargs perl -p -i -e 's/\\bsizeof\\s*\\(\\s*(\\w+)\\s*\\)\\s*\\ /\\s*sizeof\\s*\\(\\s*\\1\\s*\\[\\s*0\\s*\\]\\s*\\) /ARRAY_SIZE(\\1)/g' and manual check/verification.";

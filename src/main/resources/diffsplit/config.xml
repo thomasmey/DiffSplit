@@ -7,6 +7,7 @@
 <entry key="excludeGitCommitDateAgeMonth">12</entry>
 <entry key="mailFrom">thomas@m3y3r.de</entry>
 <entry key="mailSOB">Thomas Meyer &lt;thomas@m3y3r.de&gt;</entry>
-<entry key="includePath">block,fs,security</entry>
+<entry key="includePath">**</entry>
+<entry key="excludePath">-</entry>
 <entry key="doCheckpatch">false</entry>
 </properties>

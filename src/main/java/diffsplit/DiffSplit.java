@@ -336,6 +336,9 @@ public class DiffSplit implements Runnable {
 					Object value = props.get(key);
 
 					if(value instanceof String) {
+					    if(value.equals("**"))
+					       return true;
+
 						String[] paths = ((String) value).split(",");
 						for(String p: paths) {
 							if (path.startsWith(p))
