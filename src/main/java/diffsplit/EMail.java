@@ -13,7 +13,7 @@ public class EMail {
 	private List<String> body;
 
 	EMail () {
-		body = new ArrayList<String>();
+		body = new ArrayList<>();
 		to = new StringBuilder();
 	}
 
@@ -110,5 +110,4 @@ public class EMail {
 				writer.println(' ' + l);
 		}
 	}
-
 }

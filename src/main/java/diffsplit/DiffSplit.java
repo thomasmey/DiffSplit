@@ -3,13 +3,12 @@ package diffsplit;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -36,13 +35,14 @@ public class DiffSplit implements Runnable {
 
 	private Logger log = Logger.getLogger(DiffSplit.class.getName());
 
-	private List<SPatch> spatchList = new ArrayList<SPatch>();
+	private List<SPatch> spatchList = new ArrayList<>();
 	private File linuxDir;
 	private File patchFile;
-	private PrintWriter mboxWriter;
 	private SimpleDateFormat fromDateFormater;
 	private JsonObject messages;
 	private String runId;
+
+	private int fileCounter;
 
 	/**
 	 * @param args
@@ -78,17 +78,6 @@ public class DiffSplit implements Runnable {
 	}
 
 	public void run() {
-
-		// setup output writer
-		try {
-			mboxWriter = new PrintWriter(props.getProperty("mboxFileName"), "UTF-8");
-		} catch (FileNotFoundException e1) {
-			e1.printStackTrace();
-			return;
-		} catch (UnsupportedEncodingException e1) {
-			e1.printStackTrace();
-			return;
-		}
 
 		File[] patches = getPatches();
 		patchFile.listFiles();
@@ -231,12 +220,14 @@ public class DiffSplit implements Runnable {
 						}
 						mail.setSubject(subject);
 						String messageId = Utility.createMessageId(i, Constants.MESSAGE_ID_TOOL);
-						EMail.writeMail(mboxWriter, mail, messageId, coverMessageId, addHeaders);
+						String baseName = props.getProperty("mboxFileName");
+						try(PrintWriter mboxWriter = new PrintWriter(baseName + '.' + fileCounter++, StandardCharsets.UTF_8.name())) {
+							EMail.writeMail(mboxWriter, mail, messageId, coverMessageId, addHeaders);
+						}
 						if(i == 0) {
 							coverMessageId = messageId;
 						}
 					}
-					mboxWriter.flush();
 				}
 
 			} catch (InterruptedException | IOException e) {
